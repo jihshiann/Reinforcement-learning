@@ -1,0 +1,34 @@
+## code 解釋對照 for random mode
+
+### 對照程式 3.5 改良版
+
+1. **行動選擇** (第36-42行)：
+   - ```qval = model(state1)  # 輸出各動作的Q值```
+   - ```qval_ = qval.data.numpy()```
+   - ```if (random.random() < epsilon):```
+   - ```action_ = np.random.randint(0, 4)  # 隨機選擇行動```
+   - ```else:```
+   - ```action_ = np.argmax(qval_)         # 選擇Q值最高的行動```
+
+1. **隨機選擇行動 (第40行)**：
+   - ```action_ = np.random.randint(0, 4)```
+
+1. **根據Q值選擇行動 (第41行)**：
+   - ```action_ = np.argmax(qval_)```
+
+1. **執行行動 (第43-44行)**：
+   - ```game.makeMove(action)```
+
+1. **獲取新狀態和獎勵 (第45-47行)**：
+   - ```state2_ = game.board.render_np().reshape(1, 64) + np.random.rand(1, 64) / 100.0```
+   - ```state2 = torch.from_numpy(state2_).float()```
+   - ```reward = -5 if hit_wall else game.reward()```
+
+1. **儲存經驗 (第52行)**：
+   - ```replay.append((state1, action_, reward, state2, done))```
+
+1. **從記憶中抽取批次並學習 (第54-69行)**：
+   - ```replay.append((state1, action_, reward, state2, done))```
+   - ```... ...```
+   - ```optimizer.step()```
+
