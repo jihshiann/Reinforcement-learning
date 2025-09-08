@@ -1,0 +1,284 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div class="jumbotron">
+    <h1>GridWorld</h1>
+    <p class="lead">Create a grid map of size nxn</p>
+    <label for="dimension">Enter dimension 'n' (from 3 to 9):</label>
+    <input type="number" id="dimension" min="3" max="9">
+    <button class="btn btn-primary btn-large" onclick="createGrid()">Create Grid Map</button>
+    <div id="grid" class="grid"></div>
+    <button class="btn btn-success btn-large" onclick="calculateValues()">Set Completed</button>
+    <button class="btn btn-info btn-large" onclick="startPolicyEvaluation()">Start</button>
+    <button class="btn btn-warning btn-large" onclick="drawPath()">Show Path</button>
+</div>
+
+<style>
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, 50px);
+        grid-auto-rows: 50px;
+        grid-gap: 1px; 
+    }
+    .cell {
+        width: 100%;
+        height: 100%;
+        border: 1px solid black;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+    }
+    .start {
+        background-color: green;
+    }
+    .end {
+        background-color: red;
+    }
+    .obstacle {
+        background-color: gray; 
+    }
+    .dead {
+        background-color: blue;
+    }
+    .action {
+        font-size: 20px;
+    }.path-segment {
+    background-color: yellow; /* Set the background color */
+    border: 2px solid orange; /* Set the border */
+}
+</style>
+
+<script>
+let startSelected = false;
+let endSelected = false;
+let dimension = 3;
+let obstacleCount = 0;
+let deadSelected = false;
+const delay = 17;
+
+function sleep() {
+    return new Promise(resolve => setTimeout(resolve, delay));
+}
+
+function createGrid() {
+    startSelected = false; // Reset startSelected
+    endSelected = false; // Reset endSelected
+    deadSelected = false; // Reset deadSelected
+    obstacleCount = 0;
+
+    dimension = parseFloat (document.getElementById('dimension').value);
+    if (dimension > 9) {
+        dimension = 9;
+    } else if (dimension < 3) {
+        dimension = 3;
+    }
+
+    const gridContainer = document.getElementById('grid');
+    gridContainer.innerHTML = ''; // Clear previous grid if any
+
+    // Create grid cells
+    for (let i = 0; i < dimension; i++) {
+        for (let j = 0; j < dimension; j++) {
+            const cell = document.createElement('div');
+            cell.classList.add('cell');
+            cell.setAttribute('data-value', '0'); // Set data-value attribute to 0
+            cell.addEventListener('click', function() {
+                toggleCellState(cell);
+            });
+            gridContainer.appendChild(cell);
+        }
+    }
+    // Set grid dimensions
+    gridContainer.style.gridTemplateColumns = `repeat(${dimension}, 50px)`;
+    gridContainer.style.gridTemplateRows = `repeat(${dimension}, 50px)`;
+}
+
+
+function toggleCellState(cell) {
+    if (!startSelected) {
+        cell.classList.remove('obstacle', 'dead'); // Remove obstacle and dead classes if present
+        cell.classList.add('start');
+        startSelected = true;
+    } else if (!endSelected) {
+        cell.classList.remove('obstacle', 'dead'); // Remove obstacle and dead classes if present
+        cell.classList.add('end');
+        endSelected = true;
+    } else if (!deadSelected) { // Check if dead cell has been selected
+        if (cell.classList.contains('start') || cell.classList.contains('end')) {
+            return; // Do nothing if cell is start or end
+        }
+        cell.classList.remove('obstacle'); // Remove obstacle class if present
+        cell.classList.add('dead'); // Add dead class
+        deadSelected = true; // Set deadSelected to true
+    } else if (obstacleCount < dimension - 2) { // Check if obstacle count is less than n-2
+        if (cell.classList.contains('start') || cell.classList.contains('end')) {
+            return; // Do nothing if cell is start or end
+        }
+        cell.classList.remove('dead'); // Remove dead class if present
+        cell.classList.toggle('obstacle'); // Toggle obstacle class
+        obstacleCount += cell.classList.contains('obstacle') ? 1 : -1;
+    }
+}
+
+function calculateValues() {
+    const cells = document.querySelectorAll('.cell');
+    cells.forEach(cell => {
+        let value = 0;
+        if (cell.classList.contains('start')) {
+            value = 0; // Starting cell value
+        } else if (cell.classList.contains('end')) {
+            value = 20; // Goal cell value
+        } else if (cell.classList.contains('dead')) {
+            value = -20; // Dead cell value
+        } else if (cell.classList.contains('obstacle')) {
+            value = -5; // Obstacle cell value
+        }
+        cell.setAttribute('data-value', value); // Set data-value attribute
+        cell.textContent = value; // Display value on cell
+    });
+}
+
+async function startPolicyEvaluation() {
+    let updatedCellsExist = true; // Flag to check if there are still cells with value 0 to update
+    const decreasing = 0.5
+    // Keep updating cells until there are no cells with value 0
+    while (updatedCellsExist) {
+        const cells = document.querySelectorAll('.cell');
+        const updatedCells = []; // Array to store cells that need to be updated
+        updatedCellsExist = false; // Initialize the flag to false
+
+        // Iterate over each cell to calculate the best direction
+        for (const cell of cells) {
+            const cellIndex = Array.from(cell.parentNode.children).indexOf(cell);
+            const row = Math.floor(cellIndex / dimension);
+            const col = cellIndex % dimension;
+
+            // Check if the cell is the end point, an obstacle, or already updated
+            if (cell.classList.contains('end') || cell.classList.contains('obstacle') || parseFloat(cell.dataset.value) !== 0) {
+                continue; // Skip further processing for this cell
+            }
+
+            const actions = ["^", "v", "<", ">"]; // Define possible actions
+            let maxCellValue = -Infinity;
+            let maxAction = '';
+
+            // Iterate over each action to find the maximum value
+            for (const action of actions) {
+                const [newRow, newCol] = getNewPosition(row, col, action);
+                if (isValidPosition(newRow, newCol)) {
+                    const newCellIndex = newRow * dimension + newCol;
+                    const newCellValue = parseFloat(cells[newCellIndex].dataset.value);
+                    if (newCellValue > maxCellValue) {
+                        maxCellValue = newCellValue;
+                        maxAction = action;
+                    }
+                }
+            }
+
+            // Set the text content of the cell to include both value and direction
+            if (maxCellValue > 0) {
+                await sleep();
+                cell.dataset.value = maxCellValue - decreasing;
+                cell.textContent = cell.dataset.value + ' ' + maxAction;
+            }
+
+            // If the current value is 0, update it to the value of the cell in the direction indicated by maxAction
+            if (maxCellValue === 0) {
+                updatedCellsExist = true; // Set the flag to true since there are still cells with value 0
+                const [newRow, newCol] = getNewPosition(row, col, maxAction);
+                if (isValidPosition(newRow, newCol)) {
+                    const newCellIndex = newRow * dimension + newCol;
+                    const newCellValue = parseFloat(cells[newCellIndex].dataset.value);
+                    if (newCellValue > 0) {
+                        await sleep();
+                        updatedCells.push({ cell: cell, value: newCellValue - decreasing });
+                    }
+                }
+            }
+        }
+        // Update all cells with value 0 to the value of the cell in the direction indicated by maxAction
+        for (const updatedCell of updatedCells) {
+            updatedCell.cell.dataset.value = updatedCell.value;
+            updatedCell.cell.textContent = updatedCell.value + ' ' + updatedCell.cell.textContent.split(' ')[1];
+        }
+    }
+}
+
+
+// Function to draw the path from the start cell to the end cell
+function drawPath() {
+    const cells = document.querySelectorAll('.cell');
+    let currentCell = document.querySelector('.start'); // Start from the starting cell
+
+    // Continue drawing the path until reaching the end cell
+    while (!currentCell.classList.contains('end')) {
+        const [row, col] = getCellCoordinates(currentCell);
+        const [, action] = currentCell.textContent.split(' '); // Get the action from the cell content
+
+        // Calculate the coordinates of the next cell based on the action
+        const [newRow, newCol] = getNewPosition(row, col, action);
+
+        // Find the next cell based on the coordinates
+        const nextCellIndex = newRow * dimension + newCol;
+        const nextCell = cells[nextCellIndex];
+
+        // Check if currentCell is the start cell or nextCell is the end cell
+        if (!currentCell.classList.contains('start') && !nextCell.classList.contains('end')) {
+            // Draw the path between the current cell and the next cell
+            drawPathSegment(currentCell, nextCell);
+        }
+
+        // If the next cell is the end cell, stop drawing the path
+        if (nextCell.classList.contains('end')) {
+            break;
+        }
+
+        // Update the current cell to the next cell
+        currentCell = nextCell;
+    }
+}
+
+
+// Function to get the row and column indices of a cell
+function getCellCoordinates(cell) {
+    const cellIndex = Array.from(cell.parentNode.children).indexOf(cell);
+    const row = Math.floor(cellIndex / dimension);
+    const col = cellIndex % dimension;
+    return [row, col];
+}
+
+// Function to draw a path segment between two cells
+function drawPathSegment(startCell, endCell) {
+    // Draw the path segment using CSS or other methods
+    // For example, you can add a class to mark the path segment
+    // and style it to indicate the path visually
+    startCell.classList.add('path-segment');
+    endCell.classList.add('path-segment');
+}
+
+
+
+
+function getNewPosition(row, col, action) {
+    switch (action) {
+        case "^":
+            return [row - 1, col];
+        case "v":
+            return [row + 1, col];
+        case "<":
+            return [row, col - 1];
+        case ">":
+            return [row, col + 1];
+        default:
+            return [row, col];
+    }
+}
+
+function isValidPosition(row, col) {
+    return row >= 0 && row < dimension && col >= 0 && col < dimension;
+}
+</script>
+
+{% endblock %}
