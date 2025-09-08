@@ -1,2 +1,47 @@
-# Reinforcement-learning
-Reinforcement learning Course, Department of Computer Science and Engineering, National Chung Hsing University
+# Reinforcement-learning學習日誌
+## 專案一：GridWorld 網格世界視覺化 Flask 網頁應用(價值迭代演算法)
+#### 這個專案由三個核心檔案組成 (__init__.py, views.py, gridWorld.html)，共同建構了一個互動式的網頁應用，用於視覺化強化學習中的「網格世界」問題
+1. __init__.py: 這是 Flask 應用程式的初始化檔案。它的主要作用是建立 Flask 應用程式的實例 (app = Flask(__name__))，並將定義網站路由的 views.py 檔案匯入，使整個應用程式能夠運作
+1. views.py: 這個檔案負責處理網站的路由（URL）。它定義了當使用者訪問網站根目錄 (/) 或 /gridWorld 路徑時，伺服器應該回傳 gridWorld.html 這個網頁模板
+1. gridWorld.html: 這是整個應用的核心，包含了前端的全部邏輯
+1. HTML/CSS: 建構了使用者介面，包括一個 n x n 的網格容器、讓使用者輸入維度的欄位，以及用於「建立地圖」、「設定數值」、「開始演算」和「顯示路徑」的按鈕。CSS 則定義了不同格子（如起點、終點、障礙物、路徑）的視覺樣式
+1. JavaScript: 實現了所有互動功能。使用者可以點擊網格來設定起點、終點、陷阱和障礙物。點擊「開始」後，程式會執行一個簡化的價值迭代 (Value Iteration) 演算法，逐步計算出每個格子的價值（Q-value）和最佳移動策略（Policy）。最後，「顯示路徑」功能會根據計算出的策略，從起點開始畫出一條通往終點的最佳路徑。async/await 和 sleep 函式被用來實現演算法過程的視覺化延遲，讓使用者能清楚看到價值擴散的過程
+
+## 專案二：深度 Q 網路 (DQN) 應用於 Gridworld 遊戲
+#### 深度 Q 網路 (DQN) 應用於 Gridworld 遊戲實作，結合了理論解釋（流程圖）、程式碼對照說明以及完整的 PyTorch 程式碼實作
+1. 流程圖 (Flowcharts):　描繪了整個 DQN 演算法的宏觀步驟，從開始到結束的完整循環
+1. sars流程圖：聚焦於強化學習中的核心循環，也就是 State-Action-Reward-State (SARS) 的流程。展示代理 (Agent) 如何觀察狀態、選擇動作、執行動作、獲得獎勵和新狀態，並將這個經驗儲存起來的過程。 
+1. 程式 3.1 (建立 Gridworld 遊戲): 初始化遊戲環境，設定遊戲模式為 static（物件位置固定），並展示了如何與環境互動（如 game.display(), game.makeMove(), game.reward()）。
+1. 程式 3.2 (建立 Q 網路模型): 定義了一個基於 PyTorch (torch.nn.Sequential) 的神經網路模型
+1. 程式 3.3 (主要訓練迴圈 - 無經驗回放): DQN 的基本訓練流程，代理根據 ε-貪婪策略選擇動作，與環境互動，並立即使用產生的單一經驗來計算損失並更新網路權重
+1. 程式 3.4 (測試): test_model 函式: 用於評估訓練好的模型。在測試階段，模型會停止隨機探索（epsilon=0），完全依賴學到的策略來選擇動作
+1. 程式 3.5 (經驗回放 Experience Replay): 引入經驗回放，它建立了一個記憶庫 (replay) 來儲存過去的經驗。在訓練時，模型不再只使用最新的經驗，而是從記憶庫中隨機抽樣一個批次 (mini-batch) 的經驗來進行學習
+1. 程式 3.5 改良版 (加入學習避免撞牆機制): 獎勵機制中加入了一個明確的懲罰：如果代理選擇的動作會導致撞牆，則給予一個 -5 的負向獎勵
+
+## 專案三：深度 Q 網路 (DQN) 解決 CartPole 問題
+#### 訓練一個 AI 來玩 OpenAI Gym 中的 CartPole-v1 遊戲（保持桿子平衡）
+##### PyTorch: 從頭開始使用基礎的 PyTorch API 建立一個 DQN 代理
+1. DQN 類別: 定義了一個神經網路，它接收遊戲畫面（狀態）作為輸入，輸出兩個動作（向左或向右推動台車）的 Q 值
+1. ReplayMemory 類別: 實現了「經驗回放」機制。Agent 在遊戲中的每一步（狀態、動作、獎勵、新狀態）都會被存入這個記憶庫
+1. select_action 函式: 實現 ε-貪婪策略，在「探索」（隨機動作）和「利用」（選擇最佳動作）之間取得平衡
+1. optimize_model 函式: 訓練的核心。它會從記憶庫中隨機取樣一個批次的經驗，計算損失（預測 Q 值與目標 Q 值之間的差距），然後使用反向傳播更新神經網路的權重
+1. 主訓練迴圈: 手動編寫的迴圈，控制整個 agent 與環境互動、學習、以及同步主網路與目標網路權重的流程
+##### PyTorch Lightning: 簡化和結構化 DQN 的程式碼
+1. DQNLightning 類別: 將所有相關邏輯（網路模型、經驗回放、損失計算、優化器設定、訓練步驟）都封裝在這個繼承自 pl.LightningModule 的單一類別中
+1. training_step 方法: Lightning 的核心之一。開發者只需定義單一訓練步驟的邏輯，框架會自動處理迴圈、批次迭代和硬體（CPU/GPU）分配
+1. DataLoader: 用於從經驗回放庫中非同步地、高效地取樣資料批次
+1. Trainer 類別: Lightning 的另一個核心。只需一行 trainer.fit(model) 就能啟動整個訓練流程，極大地簡化了程式碼
+1. TensorBoard 整合: 內建了日誌功能，可以輕鬆地將訓練過程中的損失、獎勵等數據記錄下來，並使用 TensorBoard 進行即時的視覺化監控
+
+## 專案四：DQN 解決自訂的 FindCoin 尋找金幣問題
+#### 基於深度強化學習的代理（Agent），使其能夠在 Unreal Engine 4 (UE4) 虛擬環境中自主導航至預定目標點
+1. 使用 Unreal Engine 作為 3D 模擬平台，提供視覺場景與物理互動
+1. 透過 UnrealCV 插件，Python 腳本能以客戶端 (Client) 形式對環境進行控制與觀測
+1. 模型架構 (Model Architecture): 代理的核心是一個卷積神經網路 (CNN)，用於從視覺輸入中提取特徵
+1. 學習策略 (Learning Strategy): 採用 Epsilon-Greedy 策略。代理有 ϵ 的機率隨機探索，有 1−ϵ 的機率選擇當前 Q-value 最高的動作。ϵ值會隨著訓練過程衰減，使代理從探索逐漸轉向利用
+1. 經驗回放 (Experience Replay): 代理將 (state, action, reward, next_state, done) 的經驗元組儲存於一個固定大小的記憶體中。訓練時，從中隨機抽樣一個小批量 (minibatch) 的數據來更新網路
+1. Q-value 更新: 模型的損失函數基於貝爾曼方程式（Bellman Equation），目標是最小化預測 Q-value 與目標 Q-value（Target Q-value）之間的均方誤差 (MSE)
+1. 執行流程 (Execution Flow): 建立 DQNAgent 實例、檢查並載入已有的模型權重檔案、設定訓練回合數等超參數。<br>
+每回合開始時，代理被重置於場景的初始位置、代理不斷進行狀態-動作-獎勵的循環、代理的 3D 座標進入目標點周圍一定範圍內獲得 +2000 的正向獎勵、回合結束。<br>
+回合結束時，將當前回合所用步數與歷史平均步數比較，若步數更少則給予額外正獎勵，反之則給予懲罰。<br>
+每回合結束後，代理的最新模型權重會被即時保存。
